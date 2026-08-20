@@ -63,11 +63,21 @@ export default function AdminLoginPage() {
     }
   }
 
-  return (
+return (
+  <div
+    className="min-h-screen flex items-center justify-center px-4 relative"
+    style={{
+      backgroundImage: "url('/login-bg.jpg')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+    }}
+  >
     <div
-      className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: "linear-gradient(160deg, #e8f2fa 0%, #f0f6fc 50%, #e4eef8 100%)" }}
-    >
+      className="absolute inset-0"
+      style={{
+        background: "linear-gradient(160deg, rgba(232,242,250,0.85) 0%, rgba(240,246,252,0.85) 50%, rgba(228,238,248,0.85) 100%)",
+      }}
+    />
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
