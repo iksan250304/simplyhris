@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import AdminNavbar from "@/components/AdminNavbar";
 import { loadFaceModels, getFaceDescriptorFromImage } from "@/lib/faceapi";
+
+function fmt(n) {
+  return "Rp " + Number(n || 0).toLocaleString("id-ID");
+}
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState([]);
@@ -11,20 +16,14 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    nik: "",
-    baseSalary: "",
-    allowance: "",
-    bpjsPercent: "4",
-    taxPercent: "5",
-    officeLocationId: "",
+    name: "", email: "", password: "", nik: "", officeLocationId: "",
+    baseSalary: "", allowance: "", bpjsPercent: "2", taxPercent: "5",
   });
   const [ktpFile, setKtpFile] = useState(null);
   const [ktpPreview, setKtpPreview] = useState(null);
   const [ktpDescriptor, setKtpDescriptor] = useState(null);
-  const [faceMsg, setFaceMsg] = useState("");
+  const [faceStatus, setFaceStatus] = useState(null); // 'detecting' | 'found' | 'notfound'
+  const fileRef = useRef(null);
 
   useEffect(() => {
     loadEmployees();
@@ -43,37 +42,39 @@ export default function EmployeesPage() {
     setLocations(d.locations || []);
   }
 
-  async function handleKtpChange(e) {
-    const file = e.target.files[0];
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
     if (!file) return;
     setKtpFile(file);
     setKtpDescriptor(null);
-    setFaceMsg("Mendeteksi wajah dari KTP...");
+    setFaceStatus("detecting");
 
     const reader = new FileReader();
     reader.onload = async () => {
       setKtpPreview(reader.result);
-
       try {
         await loadFaceModels();
         const img = new Image();
         img.src = reader.result;
         await new Promise((res) => (img.onload = res));
-
         const descriptor = await getFaceDescriptorFromImage(img);
         if (!descriptor) {
-          setFaceMsg("Wajah tidak terdeteksi di foto KTP, coba foto lain");
+          setFaceStatus("notfound");
           setKtpDescriptor(null);
         } else {
-          setFaceMsg("Wajah terdeteksi ✓");
+          setFaceStatus("found");
           setKtpDescriptor(descriptor);
         }
       } catch (err) {
-        setFaceMsg("Gagal memuat model deteksi wajah");
+        setFaceStatus("notfound");
       }
     };
     reader.readAsDataURL(file);
   }
+
+  const estimasi = form.baseSalary
+    ? Number(form.baseSalary) + Number(form.allowance || 0) - (Number(form.baseSalary) * Number(form.bpjsPercent || 0)) / 100 - (Number(form.baseSalary) * Number(form.taxPercent || 0)) / 100
+    : null;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -83,12 +84,10 @@ export default function EmployeesPage() {
       setMsg("Foto KTP wajib diupload");
       return;
     }
-
     if (!ktpDescriptor) {
-      setMsg("Wajah di KTP belum terverifikasi, tunggu proses deteksi selesai atau ganti foto");
+      setMsg("Wajah di KTP belum terverifikasi");
       return;
     }
-
     if (!form.officeLocationId) {
       setMsg("Lokasi penempatan wajib dipilih");
       return;
@@ -116,21 +115,11 @@ export default function EmployeesPage() {
       }
 
       setMsg("Karyawan berhasil didaftarkan");
-      setForm({
-        name: "",
-        email: "",
-        password: "",
-        nik: "",
-        baseSalary: "",
-        allowance: "",
-        bpjsPercent: "4",
-        taxPercent: "5",
-        officeLocationId: "",
-      });
+      setForm({ name: "", email: "", password: "", nik: "", officeLocationId: "", baseSalary: "", allowance: "", bpjsPercent: "2", taxPercent: "5" });
       setKtpFile(null);
       setKtpPreview(null);
       setKtpDescriptor(null);
-      setFaceMsg("");
+      setFaceStatus(null);
       setShowForm(false);
       loadEmployees();
     } catch (err) {
@@ -139,192 +128,223 @@ export default function EmployeesPage() {
     setLoading(false);
   }
 
-  async function handleDelete(id) {
+  async function deleteEmployee(id) {
     if (!confirm("Hapus karyawan ini?")) return;
     await fetch(`/api/admin/employees/${id}`, { method: "DELETE" });
     loadEmployees();
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-lg font-bold text-white">
-          Simply HRIS <span className="text-red-500">Admin</span>
-        </h1>
-        <a href="/admin/dashboard" className="text-sm text-slate-400 hover:text-white">
-          ← Dashboard
-        </a>
-      </header>
-
-      <main className="max-w-5xl mx-auto p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-white text-xl font-semibold">Registrasi Karyawan</h2>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 rounded-lg bg-red-700 text-white text-sm font-medium hover:bg-red-800"
-          >
-            {showForm ? "Tutup Form" : "+ Tambah Karyawan"}
-          </button>
-        </div>
-
-        {msg && <div className="p-3 rounded-lg bg-slate-800 text-slate-200 text-sm">{msg}</div>}
-
-        {locations.length === 0 && (
-          <div className="p-3 rounded-lg bg-yellow-900 text-yellow-300 text-sm">
-            Belum ada lokasi kantor. Tambahkan lokasi dulu di Dashboard sebelum registrasi karyawan.
-          </div>
-        )}
-
-        {showForm && (
-          <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                placeholder="Nama Lengkap"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="Email"
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="Password"
-                type="password"
-                required
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="NIK KTP"
-                required
-                value={form.nik}
-                onChange={(e) => setForm({ ...form, nik: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <select
-                required
-                value={form.officeLocationId}
-                onChange={(e) => setForm({ ...form, officeLocationId: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm md:col-span-2"
-              >
-                <option value="">Pilih Lokasi Penempatan</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                placeholder="Gaji Pokok"
-                type="number"
-                value={form.baseSalary}
-                onChange={(e) => setForm({ ...form, baseSalary: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="Tunjangan"
-                type="number"
-                value={form.allowance}
-                onChange={(e) => setForm({ ...form, allowance: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="BPJS (%)"
-                type="number"
-                step="0.1"
-                value={form.bpjsPercent}
-                onChange={(e) => setForm({ ...form, bpjsPercent: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-              <input
-                placeholder="PPh 21 (%)"
-                type="number"
-                step="0.1"
-                value={form.taxPercent}
-                onChange={(e) => setForm({ ...form, taxPercent: e.target.value })}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-              />
-            </div>
-
+    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+      <AdminNavbar />
+      <main className="max-w-[1400px] mx-auto px-6 py-8">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
             <div>
-              <label className="text-slate-400 text-xs block mb-2">Foto KTP</label>
-              <input type="file" accept="image/*" onChange={handleKtpChange} className="text-sm text-slate-300" />
-              {faceMsg && (
-                <p className={`text-xs mt-2 ${ktpDescriptor ? "text-green-500" : "text-yellow-500"}`}>
-                  {faceMsg}
-                </p>
-              )}
-              {ktpPreview && (
-                <img src={ktpPreview} alt="Preview KTP" className="mt-3 max-h-40 rounded-lg border border-slate-700" />
-              )}
+              <h1 className="text-xl font-semibold text-slate-800">Registrasi Karyawan</h1>
+              <p className="text-sm mt-0.5" style={{ color: "#5a7d96" }}>{employees.length} karyawan terdaftar</p>
             </div>
-
             <button
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-red-700 text-white font-medium hover:bg-red-800 disabled:opacity-60"
+              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+              style={{
+                background: showForm ? "rgba(239,68,68,0.12)" : "linear-gradient(135deg, #0B89C4, #094D8C)",
+                color: showForm ? "#ef4444" : "white",
+                border: showForm ? "1px solid rgba(239,68,68,0.25)" : "none",
+                boxShadow: showForm ? "none" : "0 4px 16px rgba(11,137,196,0.3)",
+              }}
+              onClick={() => setShowForm((v) => !v)}
             >
-              {loading ? "Menyimpan..." : "Daftarkan Karyawan"}
+              {showForm ? "Tutup Form" : "+ Tambah Karyawan"}
             </button>
-          </form>
-        )}
+          </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 className="text-white font-semibold mb-4">Daftar Karyawan ({employees.length})</h2>
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="border-b border-slate-800 text-left text-slate-500">
-                <th className="py-2">Foto KTP</th>
-                <th className="py-2">Nama</th>
-                <th className="py-2">Email</th>
-                <th className="py-2">NIK</th>
-                <th className="py-2">Lokasi</th>
-                <th className="py-2">Gaji Pokok</th>
-                <th className="py-2">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-4 text-center text-slate-600">
-                    Belum ada karyawan terdaftar
-                  </td>
-                </tr>
-              )}
-              {employees.map((emp) => (
-                <tr key={emp.id} className="border-b border-slate-800">
-                  <td className="py-2">
-                    {emp.ktpPhotoUrl ? (
-                      <img src={emp.ktpPhotoUrl} alt="KTP" className="w-12 h-8 object-cover rounded" />
-                    ) : (
-                      "-"
+          {msg && (
+            <div className="admin-card py-3 text-sm" style={{ color: "#2a3f52" }}>
+              {msg}
+            </div>
+          )}
+
+          {locations.length === 0 && (
+            <div className="admin-card py-3 text-sm" style={{ color: "#f59e0b", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+              Belum ada lokasi kantor. Tambahkan lokasi dulu di halaman Dashboard.
+            </div>
+          )}
+
+          {showForm && (
+            <div className="admin-card">
+              <h3 className="text-sm font-semibold mb-5" style={{ color: "#0873a8" }}>Data Karyawan Baru</h3>
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 320px" }}>
+                  {/* Col 1: Identitas */}
+                  <div className="flex flex-col gap-3">
+                    <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: "#5a7d96" }}>Identitas</p>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Nama Lengkap</label>
+                      <input className="admin-input" placeholder="Budi Santoso" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Email</label>
+                      <input className="admin-input" type="email" placeholder="budi@perusahaan.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Password Awal</label>
+                      <input className="admin-input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>NIK</label>
+                      <input className="admin-input mono" placeholder="3174052309870001" maxLength={16} value={form.nik} onChange={(e) => setForm({ ...form, nik: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Lokasi Kantor</label>
+                      <select className="admin-input" value={form.officeLocationId} onChange={(e) => setForm({ ...form, officeLocationId: e.target.value })} required>
+                        <option value="">Pilih lokasi</option>
+                        {locations.map((l) => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Col 2: Kompensasi */}
+                  <div className="flex flex-col gap-3">
+                    <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: "#5a7d96" }}>Kompensasi</p>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Gaji Pokok (Rp)</label>
+                      <input className="admin-input" type="number" placeholder="8500000" value={form.baseSalary} onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>Tunjangan (Rp)</label>
+                      <input className="admin-input" type="number" placeholder="1200000" value={form.allowance} onChange={(e) => setForm({ ...form, allowance: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>BPJS (%)</label>
+                      <input className="admin-input" type="number" step="0.5" placeholder="2" value={form.bpjsPercent} onChange={(e) => setForm({ ...form, bpjsPercent: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: "#6a8faa" }}>PPh 21 (%)</label>
+                      <input className="admin-input" type="number" step="1" placeholder="5" value={form.taxPercent} onChange={(e) => setForm({ ...form, taxPercent: e.target.value })} />
+                    </div>
+
+                    {estimasi !== null && (
+                      <div className="rounded-xl p-3 mt-1" style={{ background: "#f0f6fb", border: "1px solid #dde8f0" }}>
+                        <p className="text-xs font-medium mb-2" style={{ color: "#5a7d96" }}>Estimasi Take-home</p>
+                        <p className="text-base font-bold mono" style={{ color: "#0873a8" }}>{fmt(estimasi)}</p>
+                      </div>
                     )}
-                  </td>
-                  <td className="py-2">{emp.name}</td>
-                  <td className="py-2">{emp.email}</td>
-                  <td className="py-2">{emp.nik}</td>
-                  <td className="py-2">{emp.officeLocation?.name || "-"}</td>
-                  <td className="py-2">
-                    Rp {emp.baseSalary ? Number(emp.baseSalary).toLocaleString("id-ID") : 0}
-                  </td>
-                  <td className="py-2">
-                    <button
-                      onClick={() => handleDelete(emp.id)}
-                      className="px-3 py-1 rounded bg-red-700 text-white text-xs hover:bg-red-800"
+                  </div>
+
+                  {/* Col 3: Foto KTP */}
+                  <div className="flex flex-col gap-3">
+                    <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: "#5a7d96" }}>Foto KTP</p>
+                    <div
+                      className="rounded-xl overflow-hidden flex flex-col items-center justify-center cursor-pointer transition-all"
+                      style={{ background: "#f0f6fb", border: ktpPreview ? "2px solid rgba(11,137,196,0.4)" : "2px dashed #dde8f0", minHeight: 160 }}
+                      onClick={() => fileRef.current?.click()}
                     >
-                      Hapus
+                      {ktpPreview ? (
+                        <img src={ktpPreview} alt="KTP preview" className="w-full h-40 object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 p-6">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(11,137,196,0.1)" }}>
+                            <svg width="20" height="20" fill="none" stroke="#3BA7D9" strokeWidth="1.5" viewBox="0 0 24 24">
+                              <rect x="3" y="5" width="18" height="14" rx="2" />
+                              <circle cx="8" cy="11" r="2" />
+                              <path d="M3 18l4-4 3 3 4-5 7 7" />
+                            </svg>
+                          </div>
+                          <p className="text-xs text-center" style={{ color: "#5a7d96" }}>Klik untuk upload foto KTP</p>
+                          <p className="text-[10px]" style={{ color: "#2a3f5a" }}>JPG, PNG — maks 5MB</p>
+                        </div>
+                      )}
+                    </div>
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+
+                    {faceStatus && (
+                      <div
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                        style={{
+                          background: faceStatus === "found" ? "rgba(16,185,129,0.1)" : faceStatus === "notfound" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)",
+                          border: `1px solid ${faceStatus === "found" ? "rgba(16,185,129,0.25)" : faceStatus === "notfound" ? "rgba(239,68,68,0.25)" : "rgba(245,158,11,0.25)"}`,
+                        }}
+                      >
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: faceStatus === "found" ? "#10b981" : faceStatus === "notfound" ? "#ef4444" : "#f59e0b" }}
+                        >
+                          {faceStatus === "detecting" && "Mendeteksi wajah..."}
+                          {faceStatus === "found" && "Wajah terdeteksi ✓"}
+                          {faceStatus === "notfound" && "Wajah tidak ditemukan"}
+                        </span>
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={loading} className="admin-btn-primary w-full text-sm py-2.5 mt-auto">
+                      {loading ? "Menyimpan..." : "Daftarkan Karyawan"}
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="admin-card p-0 overflow-hidden">
+            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #dde8f0" }}>
+              <h2 className="text-[15px] font-semibold text-slate-800">Daftar Karyawan</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>KTP</th>
+                    <th>Nama</th>
+                    <th>Email</th>
+                    <th>NIK</th>
+                    <th>Lokasi</th>
+                    <th>Gaji Pokok</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-6" style={{ color: "#9ab0c4" }}>
+                        Belum ada karyawan terdaftar
+                      </td>
+                    </tr>
+                  )}
+                  {employees.map((emp) => (
+                    <tr key={emp.id}>
+                      <td>
+                        {emp.ktpPhotoUrl ? (
+                          <img src={emp.ktpPhotoUrl} alt="KTP" className="w-10 h-7 object-cover rounded-lg" />
+                        ) : (
+                          <div className="w-10 h-7 rounded-lg" style={{ background: "#f0f6fb" }} />
+                        )}
+                      </td>
+                      <td className="font-medium text-slate-800">{emp.name}</td>
+                      <td style={{ color: "#6a8faa", fontSize: 12 }}>{emp.email}</td>
+                      <td className="mono" style={{ fontSize: 12, color: "#5a7d96" }}>{emp.nik}</td>
+                      <td>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(11,137,196,0.1)", color: "#0873a8" }}>
+                          {emp.officeLocation?.name || "-"}
+                        </span>
+                      </td>
+                      <td className="mono" style={{ color: "#2a3f52" }}>{fmt(emp.baseSalary)}</td>
+                      <td>
+                        <button
+                          onClick={() => deleteEmployee(emp.id)}
+                          className="text-xs font-medium px-3 py-1 rounded-lg transition-all"
+                          style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </main>
     </div>

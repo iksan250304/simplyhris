@@ -77,11 +77,7 @@ export default function EmployeeNavbar() {
     <header className="glass sticky top-0 z-40" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
         <button onClick={() => router.push("/dashboard")} className="flex items-center gap-2.5 cursor-pointer">
-          <Logo size={60} />
-          <div className="leading-none">
-            <p className="text-[13px] font-bold text-slate-900 tracking-tight">Simply HRIS</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Employee Portal</p>
-          </div>
+          <Logo size={80} />
         </button>
         <nav className="flex items-center gap-0.5">
           <button onClick={() => router.push("/history")} className={`nav-item ${pathname === "/history" ? "on" : ""}`}>

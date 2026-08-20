@@ -1,6 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AdminNavbar from "@/components/AdminNavbar";
+
+const months = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
+function fmt(n) {
+  return "Rp " + Math.round(Number(n || 0)).toLocaleString("id-ID");
+}
 
 export default function AdminPayrollPage() {
   const now = new Date();
@@ -8,9 +15,11 @@ export default function AdminPayrollPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [rows, setRows] = useState([]);
   const [overtimeInputs, setOvertimeInputs] = useState({});
+  const [generatingId, setGeneratingId] = useState(null);
   const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+
   const [fineRate, setFineRate] = useState("");
+  const [savedRate, setSavedRate] = useState(false);
   const [savingRate, setSavingRate] = useState(false);
 
   useEffect(() => {
@@ -27,8 +36,7 @@ export default function AdminPayrollPage() {
     if (d.setting) setFineRate(d.setting.lateFinePerMinute);
   }
 
-  async function saveFineRate(e) {
-    e.preventDefault();
+  async function saveFineRate() {
     setSavingRate(true);
     const res = await fetch("/api/admin/settings", {
       method: "POST",
@@ -36,9 +44,14 @@ export default function AdminPayrollPage() {
       body: JSON.stringify({ lateFinePerMinute: fineRate }),
     });
     const d = await res.json();
-    setMsg(res.ok ? "Nominal denda disimpan" : d.error);
     setSavingRate(false);
-    loadData();
+    if (res.ok) {
+      setSavedRate(true);
+      setTimeout(() => setSavedRate(false), 2500);
+      loadData();
+    } else {
+      setMsg(d.error);
+    }
   }
 
   async function loadData() {
@@ -47,124 +60,179 @@ export default function AdminPayrollPage() {
     setRows(data.rows || []);
   }
 
-  async function handleGenerate(userId) {
-    setLoading(true);
-    setMsg("");
+  async function generatePayroll(userId) {
+    setGeneratingId(userId);
     const res = await fetch("/api/admin/payroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        month,
-        year,
-        userId,
-        overtimePay: overtimeInputs[userId] || 0,
-      }),
+      body: JSON.stringify({ month, year, userId, overtimePay: overtimeInputs[userId] || 0 }),
     });
     const data = await res.json();
-    setMsg(res.ok ? data.message : data.error);
-    setLoading(false);
+    setMsg(res.ok ? "" : data.error);
+    setGeneratingId(null);
     loadData();
   }
 
+  const totalGenerated = rows.filter((r) => r.generated).length;
+  const totalPayroll = rows.reduce((s, r) => s + (r.generated ? Number(r.generated.netSalary) : 0), 0);
+
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-lg font-bold text-white">
-          Simply HRIS <span className="text-red-500">Payroll</span>
-        </h1>
-        <a href="/admin/dashboard" className="text-sm text-slate-400 hover:text-white">
-          ← Dashboard
-        </a>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
-        <form onSubmit={saveFineRate} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-end gap-3">
-          <div>
-            <label className="text-slate-400 text-xs block mb-1">Denda Keterlambatan (Rp / menit)</label>
-            <input
-              type="number"
-              value={fineRate}
-              onChange={(e) => setFineRate(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm w-48"
-            />
-          </div>
-          <button
-            disabled={savingRate}
-            className="px-4 py-2 rounded-lg bg-red-700 text-white text-sm font-medium hover:bg-red-800 disabled:opacity-60"
-          >
-            {savingRate ? "Menyimpan..." : "Simpan"}
-          </button>
-        </form>
-
-        <div className="flex gap-3 items-center">
-          <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm w-28"
-          />
-        </div>
-
-        {msg && <div className="p-3 rounded-lg bg-slate-800 text-slate-200 text-sm">{msg}</div>}
-
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 overflow-x-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="border-b border-slate-800 text-left text-slate-500">
-                <th className="py-2">Nama</th>
-                <th className="py-2">Gaji Pokok</th>
-                <th className="py-2">Tunjangan</th>
-                <th className="py-2">Denda Telat</th>
-                <th className="py-2">Upah Lembur</th>
-                <th className="py-2">Net Salary</th>
-                <th className="py-2">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.userId} className="border-b border-slate-800">
-                  <td className="py-2">{r.name}</td>
-                  <td className="py-2">Rp {Number(r.baseSalary || 0).toLocaleString("id-ID")}</td>
-                  <td className="py-2">Rp {Number(r.allowance || 0).toLocaleString("id-ID")}</td>
-                  <td className="py-2 text-red-400">Rp {Number(r.lateDeduction).toLocaleString("id-ID")}</td>
-                  <td className="py-2">
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={overtimeInputs[r.userId] ?? (r.generated ? r.generated.overtimePay : "")}
-                      onChange={(e) =>
-                        setOvertimeInputs({ ...overtimeInputs, [r.userId]: Number(e.target.value) })
-                      }
-                      className="w-28 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm"
-                    />
-                  </td>
-                  <td className="py-2 font-medium text-white">
-                    {r.generated ? `Rp ${Number(r.generated.netSalary).toLocaleString("id-ID")}` : "-"}
-                  </td>
-                  <td className="py-2">
-                    <button
-                      onClick={() => handleGenerate(r.userId)}
-                      disabled={loading}
-                      className="px-3 py-1 rounded bg-red-700 text-white text-xs hover:bg-red-800 disabled:opacity-60"
-                    >
-                      {r.generated ? "Update" : "Generate"}
-                    </button>
-                  </td>
-                </tr>
+    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+      <AdminNavbar />
+      <main className="max-w-[1400px] mx-auto px-6 py-8">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-800">Manajemen Payroll</h1>
+              <p className="text-sm mt-0.5" style={{ color: "#5a7d96" }}>{months[month - 1]} {year}</p>
+            </div>
+            <div className="flex gap-3">
+              {[
+                { label: "Total Karyawan", val: rows.length },
+                { label: "Sudah Diproses", val: `${totalGenerated}/${rows.length}`, accent: true },
+                { label: "Total Payroll", val: fmt(totalPayroll), blue: true },
+              ].map((s) => (
+                <div key={s.label} className="px-4 py-2.5 rounded-xl text-right" style={{ background: "#ffffff", border: "1px solid #dde8f0" }}>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#5a7d96" }}>{s.label}</p>
+                  <p className="text-sm font-bold mono" style={{ color: s.blue ? "#3BA7D9" : s.accent ? "#10b981" : "#2a3f52" }}>{s.val}</p>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          {msg && (
+            <div className="admin-card py-3 text-sm" style={{ color: "#ef4444" }}>
+              {msg}
+            </div>
+          )}
+
+          <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="admin-card flex items-center justify-between gap-6">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Denda Keterlambatan</p>
+                <p className="text-xs mt-0.5" style={{ color: "#5a7d96" }}>Tarif per menit keterlambatan</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium" style={{ color: "#5a7d96" }}>Rp</span>
+                  <input className="admin-input text-right mono" type="number" value={fineRate} onChange={(e) => setFineRate(e.target.value)} style={{ width: 120, paddingLeft: 32 }} />
+                </div>
+                <span className="text-xs" style={{ color: "#5a7d96" }}>/menit</span>
+                <button onClick={saveFineRate} disabled={savingRate} className="admin-btn-primary text-sm px-4 py-2 whitespace-nowrap">
+                  {savedRate ? "Tersimpan" : savingRate ? "..." : "Simpan"}
+                </button>
+              </div>
+            </div>
+
+            <div className="admin-card flex items-center gap-6">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Periode Penggajian</p>
+                <p className="text-xs mt-0.5" style={{ color: "#5a7d96" }}>Pilih bulan dan tahun</p>
+              </div>
+              <div className="flex items-center gap-3 ml-auto">
+                <select className="admin-input" value={month} onChange={(e) => setMonth(Number(e.target.value))} style={{ width: 140 }}>
+                  {months.map((m, i) => (
+                    <option key={i} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+                <input className="admin-input mono" type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 90 }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-card p-0 overflow-hidden">
+            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #dde8f0" }}>
+              <h2 className="text-[15px] font-semibold text-slate-800">Slip Gaji Karyawan</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Karyawan</th>
+                    <th>Gaji Pokok</th>
+                    <th>Tunjangan</th>
+                    <th>Denda Telat</th>
+                    <th>Upah Lembur</th>
+                    <th>Net Salary</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-6" style={{ color: "#9ab0c4" }}>
+                        Belum ada karyawan
+                      </td>
+                    </tr>
+                  )}
+                  {rows.map((r) => {
+                    const initials = r.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                    return (
+                      <tr key={r.userId}>
+                        <td>
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: "linear-gradient(135deg, #0B89C4, #094D8C)", color: "white" }}>
+                              {initials}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-800">{r.name}</p>
+                              {r.generated && (
+                                <p className="text-[10px]" style={{ color: "#10b981" }}>Slip digenerate</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="mono" style={{ color: "#2a3f52" }}>{fmt(r.baseSalary)}</td>
+                        <td className="mono" style={{ color: "#2a3f52" }}>{fmt(r.allowance)}</td>
+                        <td>
+                          <span className="mono" style={{ color: "#ef4444" }}>-{fmt(r.lateDeduction)}</span>
+                        </td>
+                        <td>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: "#5a7d96" }}>Rp</span>
+                            <input
+                              className="admin-input text-right mono"
+                              type="number"
+                              placeholder="0"
+                              value={overtimeInputs[r.userId] ?? (r.generated ? r.generated.overtimePay : "")}
+                              onChange={(e) => setOvertimeInputs({ ...overtimeInputs, [r.userId]: Number(e.target.value) })}
+                              style={{ width: 130, paddingLeft: 32, fontSize: 12 }}
+                            />
+                          </div>
+                        </td>
+                        <td>
+                          <span className="font-bold text-sm mono" style={{ color: "#0873a8" }}>
+                            {r.generated ? fmt(r.generated.netSalary) : "-"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => generatePayroll(r.userId)}
+                            disabled={generatingId === r.userId}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                            style={{
+                              background: r.generated ? "rgba(16,185,129,0.12)" : "rgba(11,137,196,0.12)",
+                              color: r.generated ? "#10b981" : "#3BA7D9",
+                              border: `1px solid ${r.generated ? "rgba(16,185,129,0.25)" : "rgba(11,137,196,0.25)"}`,
+                              opacity: generatingId === r.userId ? 0.7 : 1,
+                              minWidth: 80,
+                            }}
+                          >
+                            {generatingId === r.userId ? "..." : r.generated ? "Update" : "Generate"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-6 py-3 flex items-center justify-between" style={{ borderTop: "1px solid #dde8f0", background: "#f0f6fb" }}>
+              <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "#5a7d96" }}>Total Payroll Bulan Ini</span>
+              <span className="text-base font-bold mono" style={{ color: "#0873a8" }}>{fmt(totalPayroll)}</span>
+            </div>
+          </div>
         </div>
       </main>
     </div>

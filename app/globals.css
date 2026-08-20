@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -169,3 +170,74 @@ td { font-size: 13.5px; color: #334155; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.5); border-radius: 4px; }
+
+/* ===== ADMIN PORTAL STYLES ===== */
+.admin-input {
+  background: #ffffff;
+  border: 1px solid #d0dce8;
+  border-radius: 10px;
+  color: #1a2a3a;
+  padding: 10px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+.admin-input:focus {
+  border-color: #0B89C4;
+  box-shadow: 0 0 0 3px rgba(11, 137, 196, 0.12);
+}
+.admin-input::placeholder { color: #9ab0c4; }
+
+.admin-card {
+  background: #ffffff;
+  border: 1px solid #dde8f0;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.admin-btn-primary {
+  background: linear-gradient(135deg, #0B89C4, #094D8C);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.admin-btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.admin-btn-primary:active { transform: translateY(0); }
+.admin-btn-primary:disabled { opacity: 0.6; pointer-events: none; }
+
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.admin-table th {
+  background: #f4f8fb;
+  color: #6a8faa;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid #dde8f0;
+}
+.admin-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eaf1f7;
+  color: #2a3f52;
+  vertical-align: middle;
+}
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover td { background: #f7fafd; }
+
+.mono { font-family: 'JetBrains Mono', monospace; }
