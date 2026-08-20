@@ -78,13 +78,6 @@ return (
         background: "linear-gradient(160deg, rgba(232,242,250,0.85) 0%, rgba(240,246,252,0.85) 50%, rgba(228,238,248,0.85) 100%)",
       }}
     />
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(rgba(11,137,196,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(11,137,196,0.05) 1px, transparent 1px)`,
-          backgroundSize: "48px 48px",
-        }}
-      />
 
       <div className="w-full max-w-[420px] relative">
         <div
