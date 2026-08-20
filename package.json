@@ -17,6 +17,7 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "bcryptjs": "^2.4.3",
+    "encoding": "^0.1.13",
     "face-api.js": "^0.22.2",
     "geolib": "^3.3.14",
     "html2pdf.js": "^0.10.3",
