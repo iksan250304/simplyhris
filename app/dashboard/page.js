@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [faceState, setFaceState] = useState("idle"); // idle | verifying | verified | error
   const [faceMsg, setFaceMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selfie, setSelfie] = useState(null);
 
   const [needDispensation, setNeedDispensation] = useState(false);
   const [lateMinutes, setLateMinutes] = useState(0);
@@ -21,7 +22,6 @@ export default function DashboardPage() {
   const [dispReason, setDispReason] = useState("");
   const [dispFile, setDispFile] = useState(null);
   const [dispSent, setDispSent] = useState(false);
-  const [selfieCache, setSelfieCache] = useState(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -35,6 +35,7 @@ export default function DashboardPage() {
     fetch("/api/attendance/check-in")
       .then((r) => r.json())
       .then((d) => setAttendance(d.attendance));
+    loadFaceModels();
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -43,6 +44,7 @@ export default function DashboardPage() {
     setMode("idle");
     setFaceState("idle");
     setFaceMsg("");
+    setSelfie(null);
   }, []);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -51,6 +53,7 @@ export default function DashboardPage() {
     setMode(m);
     setFaceState("idle");
     setFaceMsg("");
+    setSelfie(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       streamRef.current = stream;
@@ -80,6 +83,9 @@ export default function DashboardPage() {
     canvas.getContext("2d").drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
 
+    // Langsung tampilkan foto & matikan stream kamera, tanpa menunggu verifikasi
+    setSelfie(dataUrl);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     setFaceState("verifying");
     setFaceMsg("Memverifikasi wajah...");
 
@@ -110,11 +116,12 @@ export default function DashboardPage() {
 
       setFaceState("verified");
       setFaceMsg(`Wajah terverifikasi (${data.similarity.toFixed(1)}%)`);
-      setSelfieCache(dataUrl);
 
       setTimeout(() => {
-        stopCamera();
-        submitAttendance(dataUrl, mode);
+        const currentMode = mode;
+        setMode("idle");
+        setFaceState("idle");
+        submitAttendance(dataUrl, currentMode);
       }, 500);
     } catch (err) {
       setFaceState("error");
@@ -164,7 +171,7 @@ export default function DashboardPage() {
         reader.readAsDataURL(dispFile);
       });
     }
-    await submitAttendance(selfieCache, "checkin", { lateReason: dispReason, lateProofBase64: proofBase64 });
+    await submitAttendance(selfie, "checkin", { lateReason: dispReason, lateProofBase64: proofBase64 });
     setDispSent(true);
     setShowDisp(false);
   }
@@ -246,13 +253,13 @@ export default function DashboardPage() {
               </span>
             </div>
 
-<div className="relative w-full bg-slate-950" style={{ aspectRatio: "16/9", maxHeight: "56vw" }}>
-  {faceState === "idle" ? (
-    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-  ) : (
-    <img src={selfie} alt="Captured" className="w-full h-full object-cover" />
-  )}
-  <canvas ref={canvasRef} className="hidden" />
+            <div className="relative w-full bg-slate-950" style={{ aspectRatio: "16/9", maxHeight: "56vw" }}>
+              {selfie ? (
+                <img src={selfie} alt="Captured" className="w-full h-full object-cover" />
+              ) : (
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              )}
+              <canvas ref={canvasRef} className="hidden" />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="rounded-full border border-white/30" style={{ width: "min(45%, 160px)", aspectRatio: "3/4" }} />
               </div>
@@ -273,7 +280,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex gap-3 px-5 py-4">
-              <button onClick={capture} disabled={faceState === "verifying"} className="btn btn-green-solid flex-1 py-3 text-[14px]">
+              <button onClick={capture} disabled={faceState === "verifying" || !!selfie} className="btn btn-green-solid flex-1 py-3 text-[14px]">
                 {faceState === "verifying" ? <Spinner /> : "Ambil Foto & Kirim"}
               </button>
               <button onClick={stopCamera} className="btn btn-ghost px-5 py-3 text-[14px]">
