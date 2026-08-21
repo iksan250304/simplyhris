@@ -246,9 +246,13 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            <div className="relative w-full bg-slate-950" style={{ aspectRatio: "16/9", maxHeight: "56vw" }}>
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <canvas ref={canvasRef} className="hidden" />
+<div className="relative w-full bg-slate-950" style={{ aspectRatio: "16/9", maxHeight: "56vw" }}>
+  {faceState === "idle" ? (
+    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+  ) : (
+    <img src={selfie} alt="Captured" className="w-full h-full object-cover" />
+  )}
+  <canvas ref={canvasRef} className="hidden" />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="rounded-full border border-white/30" style={{ width: "min(45%, 160px)", aspectRatio: "3/4" }} />
               </div>

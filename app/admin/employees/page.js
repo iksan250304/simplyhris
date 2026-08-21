@@ -25,10 +25,11 @@ export default function EmployeesPage() {
   const [faceStatus, setFaceStatus] = useState(null); // 'detecting' | 'found' | 'notfound'
   const fileRef = useRef(null);
 
-  useEffect(() => {
-    loadEmployees();
-    loadLocations();
-  }, []);
+ useEffect(() => {
+  loadEmployees();
+  loadLocations();
+  loadFaceModels();
+}, []);
 
   async function loadEmployees() {
     const res = await fetch("/api/admin/employees");
