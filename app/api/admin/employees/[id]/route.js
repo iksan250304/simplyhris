@@ -11,6 +11,14 @@ function isHRD(request) {
 export async function DELETE(request, { params }) {
   if (!isHRD(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await prisma.user.delete({ where: { id: params.id } });
-  return NextResponse.json({ message: "Karyawan dihapus" });
+  try {
+    await prisma.$transaction([
+      prisma.payroll.deleteMany({ where: { userId: params.id } }),
+      prisma.attendance.deleteMany({ where: { userId: params.id } }),
+      prisma.user.delete({ where: { id: params.id } }),
+    ]);
+    return NextResponse.json({ message: "Karyawan dihapus" });
+  } catch (err) {
+    return NextResponse.json({ error: "Gagal menghapus karyawan: " + err.message }, { status: 500 });
+  }
 }
